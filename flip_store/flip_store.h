@@ -1,6 +1,5 @@
 #ifndef FLIP_STORE_E_H
 #define FLIP_STORE_E_H
-#include <text_input/uart_text_input.h>
 #include <flipper_http/flipper_http.h>
 #include <easy_flipper/easy_flipper.h>
 #include <furi.h>
