@@ -18,7 +18,7 @@
 #define GAME_FPS          30
 #define MANUAL_ADJUSTMENT 20
 #define IDLE_TIMEOUT      120 * 1000 // 120 seconds * 1000 ticks/sec
-#define BUMP_DELAY        2 * 1000 // 2 seconds
+#define BUMP_COOLDOWN     1 * 1000 // 1 seconds
 #define BUMP_MAX          3
 
 void solve(PinballApp* pb, float dt) {
@@ -79,12 +79,16 @@ void solve(PinballApp* pb, float dt) {
         for(auto& b : table->balls) {
             for(auto& o : table->objects) {
                 if(o->physical && o->collide(b)) {
-                    if(pb->game_mode == GM_Tilted) {
+                    if(pb->game_mode == GM_Tilted || table->balls_released == false) {
+                        o->reset_state(); // ensure we do nothing!
                         continue;
                     }
                     if(o->notification) {
                         (*o->notification)(pb);
                     }
+                    // Send this object's signal (if defined)
+                    table->sm.send(o);
+
                     table->score.value += o->score;
                     o->reset_animation();
                     continue;
@@ -172,8 +176,8 @@ static void pinball_draw_callback(Canvas* const canvas, void* ctx) {
                 AlignTop,
                 furi_string_get_cstr(menu_item.name));
             if(i == half_way) {
-                canvas_draw_disc(canvas, 8, y + 3, 2);
-                canvas_draw_disc(canvas, 56, y + 3, 2);
+                canvas_draw_disc(canvas, 6, y + 3, 2);
+                canvas_draw_disc(canvas, 58, y + 3, 2);
             }
             y += 12;
         }
@@ -450,6 +454,7 @@ extern "C" int32_t pinball0_app(void* p) {
                     if(app.settings.debug_mode && app.table->balls_released == false) {
                         app.table->balls[0].p.x += MANUAL_ADJUSTMENT;
                         app.table->balls[0].prev_p.x += MANUAL_ADJUSTMENT;
+                        break;
                     }
                     bool flipper_pressed = false;
                     for(auto& f : app.table->flippers) {
@@ -474,6 +479,7 @@ extern "C" int32_t pinball0_app(void* p) {
                     if(app.settings.debug_mode && app.table->balls_released == false) {
                         app.table->balls[0].p.x -= MANUAL_ADJUSTMENT;
                         app.table->balls[0].prev_p.x -= MANUAL_ADJUSTMENT;
+                        break;
                     }
                     bool flipper_pressed = false;
                     for(auto& f : app.table->flippers) {
@@ -491,10 +497,15 @@ extern "C" int32_t pinball0_app(void* p) {
                 case InputKeyUp:
                     switch(app.game_mode) {
                     case GM_Playing:
+                        if(app.settings.debug_mode && app.table->balls_released == false) {
+                            app.table->balls[0].p.y -= MANUAL_ADJUSTMENT;
+                            app.table->balls[0].prev_p.y -= MANUAL_ADJUSTMENT;
+                            break;
+                        }
                         if(event.type == InputTypePress) {
                             // Table bump and Tilt tracking
                             uint32_t current_tick = furi_get_tick();
-                            if(current_tick - app.table->last_bump >= BUMP_DELAY) {
+                            if(current_tick - app.table->last_bump >= BUMP_COOLDOWN) {
                                 app.table->bump_count++;
                                 app.table->last_bump = current_tick;
                                 if(!app.table->tilt_detect_enabled ||
@@ -505,13 +516,12 @@ extern "C" int32_t pinball0_app(void* p) {
                                     FURI_LOG_W(TAG, "TABLE TILTED!");
                                     app.game_mode = GM_Tilted;
                                     app.table->bump_count = 0;
+                                    for(auto& o : app.table->objects) {
+                                        o->reset_state();
+                                    }
                                     notify_table_tilted(&app);
                                 }
                             }
-                        }
-                        if(app.settings.debug_mode && app.table->balls_released == false) {
-                            app.table->balls[0].p.y -= MANUAL_ADJUSTMENT;
-                            app.table->balls[0].prev_p.y -= MANUAL_ADJUSTMENT;
                         }
                         break;
                     case GM_TableSelect:
@@ -532,11 +542,12 @@ extern "C" int32_t pinball0_app(void* p) {
                 case InputKeyDown:
                     switch(app.game_mode) {
                     case GM_Playing:
-                        app.keys[InputKeyDown] = true;
                         if(app.settings.debug_mode && app.table->balls_released == false) {
                             app.table->balls[0].p.y += MANUAL_ADJUSTMENT;
                             app.table->balls[0].prev_p.y += MANUAL_ADJUSTMENT;
+                            break;
                         }
+                        app.keys[InputKeyDown] = true;
                         break;
                     case GM_TableSelect:
                         app.table_list.selected =
@@ -631,14 +642,15 @@ extern "C" int32_t pinball0_app(void* p) {
         view_port_update(view_port);
         furi_mutex_release(app.mutex);
 
-        // game timing + idle check
+        // idle timeout check
         uint32_t current_tick = furi_get_tick();
-        if(current_tick - app.idle_start >= IDLE_TIMEOUT) {
+        if(app.game_mode == GM_TableSelect && current_tick - app.idle_start >= IDLE_TIMEOUT) {
             FURI_LOG_W(TAG, "Idle timeout! Exiting Pinball0...");
             app.processing = false;
             break;
         }
 
+        // game loop timing
         uint32_t time_lapsed = current_tick - last_frame_time;
         dt = time_lapsed / 1000.0f;
         while(dt < 1.0f / GAME_FPS) {
