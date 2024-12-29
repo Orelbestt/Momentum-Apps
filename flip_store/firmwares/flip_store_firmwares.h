@@ -5,17 +5,18 @@
 #include <flip_storage/flip_store_storage.h>
 #include <callback/flip_store_callback.h>
 
-typedef struct {
-    char* name;
-    char* links[FIRMWARE_LINKS];
+typedef struct
+{
+    char *name;
+    char *links[FIRMWARE_LINKS];
 } Firmware;
 
-extern Firmware* firmwares;
-Firmware* firmware_alloc();
+extern Firmware *firmwares;
+Firmware *firmware_alloc();
 void firmware_free();
 
 // download and waiting process
-bool flip_store_get_firmware_file(char* link, char* name, char* filename);
+bool flip_store_get_firmware_file(char *link, char *name, char *filename);
 
 extern bool sent_firmware_request;
 extern bool sent_firmware_request_2;

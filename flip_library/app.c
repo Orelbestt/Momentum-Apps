@@ -2,34 +2,40 @@
 #include <alloc/flip_library_alloc.h>
 
 // Entry point for the FlipLibrary application
-int32_t flip_library_app(void* p) {
+int32_t flip_library_app(void *p)
+{
     // Suppress unused parameter warning
     UNUSED(p);
 
     // Initialize the FlipLibrary application
     app_instance = flip_library_app_alloc();
-    if(!app_instance) {
+    if (!app_instance)
+    {
         FURI_LOG_E(TAG, "Failed to allocate FlipLibraryApp");
         return -1;
     }
 
-    if(!flipper_http_ping()) {
+    if (!flipper_http_ping())
+    {
         FURI_LOG_E(TAG, "Failed to ping the device");
         return -1;
     }
 
-    if(app_instance->uart_text_input_buffer_ssid != NULL &&
-       app_instance->uart_text_input_buffer_password != NULL) {
+    if (app_instance->uart_text_input_buffer_ssid != NULL &&
+        app_instance->uart_text_input_buffer_password != NULL)
+    {
         // Try to wait for pong response.
         uint8_t counter = 10;
-        while(fhttp.state == INACTIVE && --counter > 0) {
+        while (fhttp.state == INACTIVE && --counter > 0)
+        {
             FURI_LOG_D(TAG, "Waiting for PONG");
             furi_delay_ms(100);
         }
 
-        if(counter == 0) {
-            DialogsApp* dialogs = furi_record_open(RECORD_DIALOGS);
-            DialogMessage* message = dialog_message_alloc();
+        if (counter == 0)
+        {
+            DialogsApp *dialogs = furi_record_open(RECORD_DIALOGS);
+            DialogMessage *message = dialog_message_alloc();
             dialog_message_set_header(
                 message, "[FlipperHTTP Error]", 64, 0, AlignCenter, AlignTop);
             dialog_message_set_text(

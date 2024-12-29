@@ -5,8 +5,8 @@
 #include <callback/flip_social_callback.h>
 #include <explore/flip_social_explore.h>
 
-FlipSocialModel2* flip_social_messages_alloc();
-FlipSocialMessage* flip_social_user_messages_alloc();
+FlipSocialModel2 *flip_social_messages_alloc();
+FlipSocialMessage *flip_social_user_messages_alloc();
 void flip_social_free_message_users();
 void flip_social_free_messages();
 bool flip_social_update_messages_submenu();
